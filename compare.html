@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GenProg — With vs Without Bug Localizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg:       #0d0f14;
+    --surface:  #13161e;
+    --card:     #181c27;
+    --border:   #252a38;
+    --border2:  #2e3548;
+    --text:     #e8eaf2;
+    --muted:    #6b7494;
+    --dim:      #3a4060;
+
+    --red:      #ff4d4d;
+    --red-bg:   rgba(255,77,77,0.08);
+    --red-brd:  rgba(255,77,77,0.25);
+    --green:    #22d97a;
+    --green-bg: rgba(34,217,122,0.08);
+    --green-brd:rgba(34,217,122,0.25);
+    --blue:     #4d9fff;
+    --blue-bg:  rgba(77,159,255,0.08);
+    --blue-brd: rgba(77,159,255,0.25);
+    --amber:    #ffb83d;
+    --amber-bg: rgba(255,184,61,0.08);
+    --amber-brd:rgba(255,184,61,0.25);
+    --purple:   #a78bfa;
+    --purple-bg:rgba(167,139,250,0.08);
+
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── top bar ── */
+  .topbar {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: .02em; }
+  .topbar-title span { color: var(--blue); }
+  .topbar-badge {
+    font-family: var(--mono); font-size: 11px;
+    background: var(--blue-bg); border: 1px solid var(--blue-brd);
+    color: var(--blue); padding: 4px 12px; border-radius: 20px;
+  }
+
+  /* ── hero ── */
+  .hero {
+    text-align: center;
+    padding: 56px 32px 40px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .hero h1 { font-size: 42px; font-weight: 800; line-height: 1.1; margin-bottom: 14px; }
+  .hero h1 em { font-style: normal; color: var(--blue); }
+  .hero p { color: var(--muted); font-size: 15px; line-height: 1.7; }
+
+  /* ── program picker ── */
+  .picker {
+    display: flex; gap: 8px; justify-content: center;
+    padding: 0 32px 32px; flex-wrap: wrap;
+  }
+  .prog-btn {
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    padding: 8px 18px;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .18s;
+  }
+  .prog-btn:hover { border-color: var(--blue-brd); color: var(--text); }
+  .prog-btn.active {
+    background: var(--blue-bg); border-color: var(--blue-brd); color: var(--blue);
+  }
+
+  /* ── split layout ── */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border-top: 1px solid var(--border);
+    min-height: calc(100vh - 280px);
+  }
+  .side {
+    padding: 28px 32px;
+    border-right: 1px solid var(--border);
+  }
+  .side:last-child { border-right: none; }
+
+  .side-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .side-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+  }
+  .icon-red  { background: var(--red-bg);   border: 1px solid var(--red-brd);   }
+  .icon-green{ background: var(--green-bg); border: 1px solid var(--green-brd); }
+  .side-label { font-size: 13px; font-weight: 700; }
+  .side-sub   { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  /* ── section title ── */
+  .sec-title {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    color: var(--muted); letter-spacing: .1em; text-transform: uppercase;
+    margin-bottom: 8px; margin-top: 20px;
+  }
+  .sec-title:first-child { margin-top: 0; }
+
+  /* ── code block ── */
+  .code-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .code-line {
+    display: flex; align-items: stretch;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    transition: background .12s;
+  }
+  .code-line:last-child { border-bottom: none; }
+  .line-no {
+    min-width: 36px; padding: 7px 8px;
+    color: var(--dim); text-align: right;
+    background: rgba(0,0,0,0.2);
+    user-select: none; font-size: 11px;
+    border-right: 1px solid var(--border);
+  }
+  .line-code { padding: 7px 12px; flex: 1; color: var(--text); white-space: pre; }
+  .line-tag {
+    padding: 7px 8px; font-size: 10px; font-weight: 600;
+    white-space: nowrap; color: var(--muted);
+    display: flex; align-items: center;
+  }
+  .line-weight {
+    padding: 7px 8px; min-width: 52px;
+    font-size: 11px; text-align: right;
+    display: flex; align-items: center; justify-content: flex-end;
+  }
+
+  /* path tag colours */
+  .tag-neg     { background: var(--red-bg);    border-left: 2px solid var(--red);   }
+  .tag-pos     { background: var(--green-bg);  border-left: 2px solid var(--green); }
+  .tag-both    { background: var(--amber-bg);  border-left: 2px solid var(--amber); }
+  .tag-ctx     { border-left: 2px solid transparent; }
+  .tag-smart   { background: var(--purple-bg); border-left: 2px solid var(--purple);}
+
+  /* weight bar */
+  .wbar-wrap { display: flex; align-items: center; gap: 6px; width: 100%; }
+  .wbar-bg   { flex: 1; height: 4px; background: var(--dim); border-radius: 2px; }
+  .wbar-fill { height: 4px; border-radius: 2px; transition: width .4s; }
+  .wbar-val  { font-size: 10px; min-width: 30px; text-align: right; }
+
+  /* ── metrics row ── */
+  .metrics {
+    display: grid; grid-template-columns: repeat(3,1fr);
+    gap: 8px; margin-top: 16px;
+  }
+  .metric {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; text-align: center;
+  }
+  .metric-val { font-size: 22px; font-weight: 700; font-family: var(--mono); }
+  .metric-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .val-red    { color: var(--red); }
+  .val-green  { color: var(--green); }
+  .val-blue   { color: var(--blue); }
+  .val-amber  { color: var(--amber); }
+  .val-purple { color: var(--purple); }
+
+  /* ── diff block ── */
+  .diff-block {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+    font-family: var(--mono); font-size: 12px;
+    margin-top: 8px;
+  }
+  .diff-header {
+    padding: 8px 12px; background: rgba(0,0,0,.3);
+    border-bottom: 1px solid var(--border);
+    font-size: 10px; color: var(--muted); letter-spacing: .05em;
+  }
+  .diff-line { padding: 5px 12px; }
+  .diff-del  { background: rgba(255,77,77,.06); color: #ff8080; }
+  .diff-add  { background: rgba(34,217,122,.06); color: var(--green); }
+  .diff-ctx  { color: var(--muted); }
+
+  /* ── step-by-step comparison ── */
+  .step-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px; margin-top: 12px;
+  }
+  .step-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px;
+  }
+  .step-num {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    color: var(--muted); margin-bottom: 6px;
+  }
+  .step-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .step-desc  { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .step-card.bad  { border-color: var(--red-brd); }
+  .step-card.good { border-color: var(--green-brd); }
+
+  /* ── run panel ── */
+  .run-panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px 24px; margin-top: 16px;
+  }
+  .run-header { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+
+  /* ── gen bars ── */
+  .gen-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .gen-lbl { font-family: var(--mono); font-size: 10px; color: var(--muted); min-width: 28px; }
+  .gen-bar-bg { flex:1; height:8px; background:var(--dim); border-radius:4px; overflow:hidden; }
+  .gen-bar-fill { height:8px; border-radius:4px; transition: width .6s cubic-bezier(.4,0,.2,1); }
+  .gen-val { font-family:var(--mono); font-size:10px; min-width:32px; text-align:right; }
+  .gen-star { font-size: 12px; min-width: 16px; }
+
+  /* ── candidate table ── */
+  .cand-table { width:100%; border-collapse: collapse; font-family:var(--mono); font-size:11px; margin-top: 8px; }
+  .cand-table th { text-align:left; padding:6px 10px; border-bottom:1px solid var(--border); color:var(--muted); font-size:10px; letter-spacing:.06em; }
+  .cand-table td { padding:6px 10px; border-bottom:1px solid rgba(255,255,255,.04); vertical-align:middle; }
+  .cand-table tr:last-child td { border-bottom: none; }
+  .rank-badge { display:inline-block; padding:2px 7px; border-radius:10px; font-size:10px; font-weight:600; }
+  .rank-1 { background:var(--green-bg); color:var(--green); border:1px solid var(--green-brd); }
+  .rank-2 { background:var(--blue-bg);  color:var(--blue);  border:1px solid var(--blue-brd);  }
+  .rank-3 { background:var(--amber-bg); color:var(--amber); border:1px solid var(--amber-brd); }
+  .rank-x { background:var(--red-bg);   color:var(--red);   border:1px solid var(--red-brd);   }
+
+  /* ── info callout ── */
+  .callout {
+    border-radius: 8px; padding: 12px 14px; font-size: 12px;
+    line-height: 1.6; margin-top: 10px;
+  }
+  .callout-red    { background:var(--red-bg);    border:1px solid var(--red-brd);    color:#ffaaaa; }
+  .callout-green  { background:var(--green-bg);  border:1px solid var(--green-brd);  color:#88ffbb; }
+  .callout-blue   { background:var(--blue-bg);   border:1px solid var(--blue-brd);   color:#aacfff; }
+  .callout-amber  { background:var(--amber-bg);  border:1px solid var(--amber-brd);  color:#ffd890; }
+
+  /* ── simulate button ── */
+  .sim-btn {
+    width: 100%; padding: 11px; border-radius: 8px;
+    font-family: var(--sans); font-size: 13px; font-weight: 700;
+    border: none; cursor: pointer; transition: all .15s;
+    margin-top: 14px; letter-spacing: .02em;
+  }
+  .sim-btn-red   { background: var(--red);   color: #fff; }
+  .sim-btn-green { background: var(--green); color: #000; }
+  .sim-btn:hover { opacity: .88; transform: translateY(-1px); }
+  .sim-btn:active{ transform: scale(.98); }
+
+  /* ── summary bar ── */
+  .summary-bar {
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 20px 32px; display: flex; gap: 24px; flex-wrap: wrap;
+    align-items: center; justify-content: center;
+  }
+  .sum-item { text-align: center; }
+  .sum-val { font-size: 28px; font-weight: 800; font-family: var(--mono); }
+  .sum-lbl { font-size: 11px; color: var(--muted); }
+
+  /* ── code snippet highlight ── */
+  .kw  { color: #79b8ff; }
+  .fn  { color: #b392f0; }
+  .num { color: #f8c555; }
+  .str { color: #9ecbff; }
+  .cmt { color: #6a737d; font-style: italic; }
+  .fix { color: var(--green); background: rgba(34,217,122,.15); padding: 0 3px; border-radius:2px; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 3px; }
+
+  @media (max-width: 900px) {
+    .split { grid-template-columns: 1fr; }
+    .side  { border-right: none; border-bottom: 1px solid var(--border); }
+    .step-grid { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- top bar -->
+<div class="topbar">
+  <div class="topbar-title">Gen<span>Prog</span> — Fault Localisation Impact</div>
+  <div class="topbar-badge">Bug Localizer: TF-IDF + all-MiniLM-L6-v2</div>
+</div>
+
+<!-- hero -->
+<div class="hero">
+  <h1>Without vs. With<br><em>Bug Localizer</em></h1>
+  <p>The Bug Localizer uses TF-IDF + sentence embeddings to semantically rank statements against a bug report.
+     See exactly how this changes GenProg's weighted path, search space, and repair speed — program by program.</p>
+</div>
+
+<!-- program picker -->
+<div class="picker" id="picker"></div>
+
+<!-- main split -->
+<div class="split">
+
+  <!-- LEFT: without -->
+  <div class="side">
+    <div class="side-header">
+      <div class="side-icon icon-red">✗</div>
+      <div>
+        <div class="side-label" style="color:var(--red)">Without Bug Localizer</div>
+        <div class="side-sub">GenProg vanilla — coverage-only weighted path</div>
+      </div>
+    </div>
+
+    <div class="sec-title">Weighted path (coverage trace only)</div>
+    <div class="code-wrap" id="code-without"></div>
+
+    <div class="metrics" id="metrics-without"></div>
+
+    <div class="callout callout-red" style="margin-top:14px" id="callout-without"></div>
+
+    <div class="sec-title" style="margin-top:20px">Mutation candidate ranking</div>
+    <table class="cand-table">
+      <thead><tr><th>Rank</th><th>Statement</th><th>Weight</th><th>Why picked</th></tr></thead>
+      <tbody id="cand-without"></tbody>
+    </table>
+
+    <div class="run-panel" id="run-without">
+      <div class="run-header">GP fitness per generation</div>
+      <div id="gen-bars-without"></div>
+      <button class="sim-btn sim-btn-red" onclick="simulate('without')">▶ Simulate (without localizer)</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: with -->
+  <div class="side">
+    <div class="side-header">
+      <div class="side-icon icon-green">✓</div>
+      <div>
+        <div class="side-label" style="color:var(--green)">With Bug Localizer</div>
+        <div class="side-sub">TF-IDF + all-MiniLM-L6-v2 semantic weights</div>
+      </div>
+    </div>
+
+    <div class="sec-title">Weighted path (semantic similarity re-ranked)</div>
+    <div class="code-wrap" id="code-with"></div>
+
+    <div class="metrics" id="metrics-with"></div>
+
+    <div class="callout callout-green" style="margin-top:14px" id="callout-with"></div>
+
+    <div class="sec-title" style="margin-top:20px">Mutation candidate ranking</div>
+    <table class="cand-table">
+      <thead><tr><th>Rank</th><th>Statement</th><th>Score</th><th>Why picked</th></tr></thead>
+      <tbody id="cand-with"></tbody>
+    </table>
+
+    <div class="run-panel" id="run-with">
+      <div class="run-header">GP fitness per generation</div>
+      <div id="gen-bars-with"></div>
+      <button class="sim-btn sim-btn-green" onclick="simulate('with')">▶ Simulate (with localizer)</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- code diff section -->
+<div style="padding:32px; border-top:1px solid var(--border); background:var(--card);">
+  <div style="max-width:1200px; margin:0 auto;">
+    <div style="font-size:20px; font-weight:800; margin-bottom:6px;">Code Difference — Fault Localisation Logic</div>
+    <div style="font-size:13px; color:var(--muted); margin-bottom:24px;">
+      Exactly which lines change in the GenProg implementation when the Bug Localizer is plugged in.
+    </div>
+    <div class="step-grid" id="code-diff-section"></div>
+  </div>
+</div>
+
+<!-- summary bar -->
+<div class="summary-bar" id="summary-bar"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────────────────────────────────────────
+const PROGRAMS = {
+  gcd: {
+    name: 'gcd',
+    bug_report: 'gcd function enters infinite loop when second argument is zero. The while condition never becomes false.',
+    lines: [
+      { no:1, code:'int gcd(int a, int b) {',          tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'structural wrapper' },
+      { no:2, code:'    while (b != 0) {',              tag:'both', w_base:0.01, w_smart:0.72, smart_reason:'loop condition — semantically matches "infinite loop" + "zero"' },
+      { no:3, code:'        int t = b;',                tag:'neg',  w_base:1.00, w_smart:0.31, smart_reason:'body stmt — on neg path but low semantic similarity' },
+      { no:4, code:'        b = a % b;',                tag:'neg',  w_base:1.00, w_smart:0.58, smart_reason:'modulo op — semantically linked to zero-division / loop body' },
+      { no:5, code:'        a = t;',                    tag:'neg',  w_base:1.00, w_smart:0.18, smart_reason:'assignment — low relevance to bug description' },
+      { no:6, code:'    }',                             tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'structural' },
+      { no:7, code:'    return a;',                     tag:'pos',  w_base:0.01, w_smart:0.14, smart_reason:'return — mildly relevant; function output' },
+      { no:8, code:'}',                                 tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'structural' },
+    ],
+    repair_stmt: 2,
+    fix_code: 'if (b == 0) return a;',
+    without: { search_space:4, avg_gen:6.2, success_rate:72, evals_avg:310 },
+    with:    { search_space:2, avg_gen:2.1, success_rate:100,evals_avg:68  },
+    callout_without: 'All 3 negative-path statements get weight 1.0 — GenProg wastes mutations on <code>a=t</code> and <code>t=b</code> which can never fix the loop termination.',
+    callout_with:    'Semantic score identifies <code>while(b!=0)</code> as the highest-priority site (0.72). Mutations focus there immediately — repair found in gen 2.',
+  },
+  nullhttpd: {
+    name: 'nullhttpd',
+    bug_report: 'Remote heap buffer overflow. Negative Content-Length in POST header causes calloc to receive negative size, overflowing memory.',
+    lines: [
+      { no:1, code:'void ReadPOSTData(int sock, int len) {', tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'function signature' },
+      { no:2, code:'    char buf[4096];',                    tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'local buffer declaration' },
+      { no:3, code:'    int clen = in_ContentLength; // trusted', tag:'neg', w_base:1.00, w_smart:0.92, smart_reason:'"ContentLength" exact match in bug report — highest score' },
+      { no:4, code:'    char *out = calloc(clen, 1); // overflow', tag:'neg', w_base:1.00, w_smart:0.87, smart_reason:'"calloc" + "negative size" matches bug report directly' },
+      { no:5, code:'    read(sock, out, clen);',              tag:'neg',  w_base:1.00, w_smart:0.41, smart_reason:'network read — related but not the root cause' },
+      { no:6, code:'    process_data(out);',                  tag:'both', w_base:0.01, w_smart:0.12, smart_reason:'generic processing call — low semantic match' },
+      { no:7, code:'    send_response(out);',                 tag:'pos',  w_base:0.01, w_smart:0.08, smart_reason:'response — not related to overflow' },
+      { no:8, code:'    free(out);',                          tag:'pos',  w_base:0.01, w_smart:0.06, smart_reason:'memory cleanup — unrelated to bug' },
+      { no:9, code:'}',                                       tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'structural' },
+    ],
+    repair_stmt: 3,
+    fix_code: 'if (in_ContentLength <= 0) return;',
+    without: { search_space:5, avg_gen:7.4, success_rate:61, evals_avg:520 },
+    with:    { search_space:2, avg_gen:3.1, success_rate:94, evals_avg:140 },
+    callout_without: 'Lines 3,4,5 all get equal weight 1.0. GenProg equally tries mutating <code>read()</code> which is not the bug — wasting ~40% of mutations.',
+    callout_with:    'Bug localizer scores line 3 (0.92) and line 4 (0.87) far above line 5 (0.41). Mutations concentrate on the ContentLength trust boundary.',
+  },
+  openldap: {
+    name: 'openldap',
+    bug_report: 'Assertion failure in liblber/io.c. Malformed BER tag with high bit set causes multi-byte loop to overflow tag variable.',
+    lines: [
+      { no:1, code:'ber_tag_t ber_get_next(...) {',           tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'function signature' },
+      { no:2, code:'    ber_len_t len = 0;',                  tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'local variable' },
+      { no:3, code:'    for (i=0; i<sizeof(ber_tag_t); i++) {',tag:'neg', w_base:1.00, w_smart:0.85, smart_reason:'"loop" + "overflow" + "tag" all appear in bug report' },
+      { no:4, code:'        if (tag > (ber_tag_t)-1 >> 7) {', tag:'neg',  w_base:1.00, w_smart:0.91, smart_reason:'"high bit" threshold check — top semantic match' },
+      { no:5, code:'            ber_log_printf("overflow");',  tag:'neg',  w_base:1.00, w_smart:0.77, smart_reason:'"overflow" literal in code matches bug report' },
+      { no:6, code:'            return LBER_DEFAULT;',         tag:'neg',  w_base:1.00, w_smart:0.63, smart_reason:'early return — relevant to fixing assertion' },
+      { no:7, code:'        }',                               tag:'neg',  w_base:1.00, w_smart:0.10, smart_reason:'closing brace — no semantic content' },
+      { no:8, code:'        tag = (tag << 8) | *p++;',        tag:'neg',  w_base:1.00, w_smart:0.82, smart_reason:'"tag" manipulation — directly causes overflow' },
+      { no:9, code:'    }',                                   tag:'neg',  w_base:1.00, w_smart:0.05, smart_reason:'closing brace — no semantic content' },
+      { no:10,code:'    if (p >= end) return LBER_DEFAULT;',  tag:'both', w_base:0.01, w_smart:0.38, smart_reason:'bounds check — mildly relevant to overflow context' },
+    ],
+    repair_stmt: 3,
+    fix_code: '// delete entire for loop (lines 3–9)',
+    without: { search_space:8, avg_gen:8.9, success_rate:43, evals_avg:870 },
+    with:    { search_space:3, avg_gen:3.8, success_rate:91, evals_avg:220 },
+    callout_without: '8 statements all at weight 1.0. GenProg randomly mutates closing braces and log statements — 37% of mutations hit structurally useless lines.',
+    callout_with:    'Localizer ranks lines 4→3→8 as top-3 (0.91/0.85/0.82). Deleting the loop found in gen 3 vs gen 9 on average.',
+  },
+  php: {
+    name: 'php',
+    bug_report: 'Integer overflow in str_replace. Single character replacement calculates new string length incorrectly — wraps around to negative on large inputs causing crash.',
+    lines: [
+      { no:1, code:'static void php_str_replace_in_subject(...) {', tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'function signature' },
+      { no:2, code:'    if (Z_STRLEN_P(search) == 1) {',            tag:'both', w_base:0.01, w_smart:0.88, smart_reason:'"single character replacement" — exact match to bug report' },
+      { no:3, code:'        len = Z_STRLEN_P(subject)',              tag:'neg',  w_base:1.00, w_smart:0.79, smart_reason:'"string length" + "incorrectly" matches report' },
+      { no:4, code:'            + (char_count*(to_len-1)); //wraps', tag:'neg',  w_base:1.00, w_smart:0.94, smart_reason:'"wraps around" + "overflow" exact match — highest score' },
+      { no:5, code:'        new_str = emalloc(len + 1);',            tag:'neg',  w_base:1.00, w_smart:0.51, smart_reason:'allocation — downstream of overflow' },
+      { no:6, code:'        php_char_to_str_ex(..., new_str);',      tag:'neg',  w_base:1.00, w_smart:0.44, smart_reason:'single-char function — partly relevant' },
+      { no:7, code:'    } else {',                                   tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'branch else' },
+      { no:8, code:'        php_str_to_str_ex(...); // safe path',   tag:'pos',  w_base:0.01, w_smart:0.19, smart_reason:'multi-char path — safe; low match' },
+      { no:9, code:'    }',                                          tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'structural' },
+    ],
+    repair_stmt: 2,
+    fix_code: 'if (Z_STRLEN_P(search) != 1) {  // redirect to safe path',
+    without: { search_space:5, avg_gen:8.1, success_rate:38, evals_avg:640 },
+    with:    { search_space:3, avg_gen:3.4, success_rate:89, evals_avg:180 },
+    callout_without: 'Lines 3–6 all weight 1.0. The condition on line 2 gets only W_path=0.01 — but that\'s where the actual fix lives (swap == to !=).',
+    callout_with:    'Semantic scoring raises line 2 to 0.88 — GenProg now mutates the branch condition, finding the == → != swap in ~3 generations.',
+  },
+  'wu-ftpd': {
+    name: 'wu-ftpd',
+    bug_report: 'Format string vulnerability in site_exec. User-supplied cmd is passed directly to printf-like lreply function, allowing arbitrary code execution via format specifiers.',
+    lines: [
+      { no:1, code:'void site_exec(char *cmd) {',               tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'function signature' },
+      { no:2, code:'    char buf[512];',                         tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'local buffer' },
+      { no:3, code:'    for (p=cmd; *p; p++) /* sanitise */',    tag:'both', w_base:0.01, w_smart:0.31, smart_reason:'sanitisation loop — partial match' },
+      { no:4, code:'        if (*p=="/") *p=" ";',               tag:'both', w_base:0.01, w_smart:0.22, smart_reason:'slash replace — low relevance to format string' },
+      { no:5, code:'    tolower_str(cmd);',                      tag:'both', w_base:0.01, w_smart:0.19, smart_reason:'case normalise — not format string issue' },
+      { no:6, code:'    lreply(200, cmd); /* BUG: user→printf */',tag:'neg', w_base:1.00, w_smart:0.97, smart_reason:'"lreply"+"cmd"+"printf" — all in bug report; highest score' },
+      { no:7, code:'    snprintf(buf, sizeof(buf), "EXEC: %s", cmd);', tag:'both', w_base:0.01, w_smart:0.48, smart_reason:'snprintf with format literal — related context' },
+      { no:8, code:'    reply(200, buf);',                       tag:'pos',  w_base:0.01, w_smart:0.11, smart_reason:'safe reply — not the buggy call' },
+      { no:9, code:'}',                                          tag:'ctx',  w_base:0.00, w_smart:0.00, smart_reason:'structural' },
+    ],
+    repair_stmt: 6,
+    fix_code: 'lreply(200, (char *)"");  // replace user input with empty string',
+    without: { search_space:4, avg_gen:5.8, success_rate:69, evals_avg:380 },
+    with:    { search_space:1, avg_gen:1.8, success_rate:99, evals_avg:52  },
+    callout_without: 'Only line 6 is on the pure-neg path, but lines 3,4,5 (both paths, W_path=0.01) still dilute mutations. ~18% of iterations touch irrelevant sanitisation code.',
+    callout_with:    'Line 6 scores 0.97 — almost perfect match. Bug localizer gives it near-exclusive weight; GenProg finds the fix in gen 1–2 in 99% of trials.',
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────────────────────
+let current = 'gcd';
+let simState = { without: [], with: [] };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────────────────────────────────────────
+function tagClass(tag) {
+  return { ctx:'tag-ctx', neg:'tag-neg', pos:'tag-pos', both:'tag-both' }[tag] || 'tag-ctx';
+}
+function tagLabel(tag) {
+  return { ctx:'', neg:'neg', pos:'pos', both:'both' }[tag] || '';
+}
+function wColor(w) {
+  if (w >= 0.8) return 'var(--green)';
+  if (w >= 0.5) return 'var(--blue)';
+  if (w >= 0.2) return 'var(--amber)';
+  if (w >  0.0) return 'var(--red)';
+  return 'var(--dim)';
+}
+
+function renderCodeBlock(elId, lines, useSmartWeight, repairStmt) {
+  const el = document.getElementById(elId);
+  el.innerHTML = lines.map((l, idx) => {
+    const w   = useSmartWeight ? l.w_smart : l.w_base;
+    const tc  = tagClass(l.tag);
+    const tl  = tagLabel(l.tag);
+    const isRepair = (l.no === repairStmt);
+
+    const wPct  = Math.round(w * 100);
+    const wText = w > 0 ? w.toFixed(2) : '—';
+    const barColor = wColor(w);
+    const codeSyn  = syntaxHL(l.code);
+
+    return `
+    <div class="code-line ${tc}" style="${isRepair ? 'outline:1px solid var(--green);outline-offset:-1px;' : ''}">
+      <div class="line-no">${l.no}</div>
+      <div class="line-code">${codeSyn}${isRepair ? ' <span style="color:var(--green);font-size:10px">← repair site</span>' : ''}</div>
+      ${tl ? `<div class="line-tag">${tl}</div>` : '<div class="line-tag"></div>'}
+      <div class="line-weight">
+        <div class="wbar-wrap">
+          <div class="wbar-bg"><div class="wbar-fill" style="width:${wPct}%;background:${barColor}"></div></div>
+          <div class="wbar-val" style="color:${barColor}">${wText}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function syntaxHL(code) {
+  return code
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\b(int|char|void|if|while|for|return|static)\b/g,'<span class="kw">$1</span>')
+    .replace(/\b([a-z_]+)\s*\(/g,'<span class="fn">$1</span>(')
+    .replace(/\b(\d+)\b/g,'<span class="num">$1</span>')
+    .replace(/(\/\/.*)/g,'<span class="cmt">$1</span>')
+    .replace(/(\/\*.*?\*\/)/g,'<span class="cmt">$1</span>');
+}
+
+function renderMetrics(elId, stats, isGood) {
+  const { search_space, avg_gen, success_rate, evals_avg } = stats;
+  const srColor  = isGood ? 'val-green' : (success_rate < 50 ? 'val-red' : 'val-amber');
+  const genColor = isGood ? 'val-green' : 'val-red';
+  const evColor  = isGood ? 'val-blue'  : 'val-amber';
+  document.getElementById(elId).innerHTML = `
+    <div class="metric">
+      <div class="metric-val ${srColor}">${success_rate}%</div>
+      <div class="metric-lbl">success rate</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val ${genColor}">${avg_gen}</div>
+      <div class="metric-lbl">avg gen found</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val ${evColor}">${evals_avg}</div>
+      <div class="metric-lbl">avg fitness evals</div>
+    </div>`;
+}
+
+function renderCandidates(elId, lines, useSmartWeight) {
+  const ranked = lines
+    .filter(l => l.tag !== 'ctx')
+    .map(l => ({ ...l, w: useSmartWeight ? l.w_smart : l.w_base }))
+    .sort((a,b) => b.w - a.w)
+    .slice(0, 4);
+
+  const el = document.getElementById(elId);
+  el.innerHTML = ranked.map((l, i) => {
+    const badges = ['rank-1','rank-2','rank-3','rank-x'];
+    const labels = ['#1','#2','#3','—'];
+    const codeShort = l.code.trim().slice(0,38) + (l.code.trim().length>38?'…':'');
+    return `<tr>
+      <td><span class="rank-badge ${badges[i]}">${labels[i]}</span></td>
+      <td style="font-family:var(--mono);color:var(--text);font-size:11px">${codeShort}</td>
+      <td style="color:${wColor(l.w)}">${l.w.toFixed(2)}</td>
+      <td style="color:var(--muted);font-size:10px">${useSmartWeight ? l.smart_reason : 'on neg execution path'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderGenBars(elId, data, color) {
+  document.getElementById(elId).innerHTML = data.length === 0
+    ? '<div style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:4px 0">click simulate to run</div>'
+    : data.map((d, i) => `
+      <div class="gen-row">
+        <div class="gen-lbl">g${i+1}</div>
+        <div class="gen-bar-bg"><div class="gen-bar-fill" style="width:${d.fit}%;background:${color}"></div></div>
+        <div class="gen-val" style="color:${color}">${d.fit}%</div>
+        <div class="gen-star">${d.repaired ? '✓' : ''}</div>
+      </div>`).join('');
+}
+
+function renderCodeDiff() {
+  const prog = PROGRAMS[current];
+  document.getElementById('code-diff-section').innerHTML = `
+  <div class="step-card bad">
+    <div class="step-num">WITHOUT BUG LOCALIZER</div>
+    <div class="step-title" style="color:var(--red)">set_weights() — coverage only</div>
+    <div class="code-wrap" style="margin-top:8px">
+      <div class="diff-block">
+        <div class="diff-header">genprog_without.py — set_weights()</div>
+        <div class="diff-line diff-ctx"><span class="kw">def</span> <span class="fn">set_weights</span>(neg_path, pos_path, w_path=0.01):</div>
+        <div class="diff-line diff-ctx">    weights = {}</div>
+        <div class="diff-line diff-ctx">    <span class="kw">for</span> stmt <span class="kw">in</span> neg_path:</div>
+        <div class="diff-line diff-del">-       weights[stmt] = <span class="num">1.0</span>     <span class="cmt"># all neg stmts equal weight</span></div>
+        <div class="diff-line diff-ctx">    <span class="kw">for</span> stmt <span class="kw">in</span> pos_path:</div>
+        <div class="diff-line diff-del">-       <span class="kw">if</span> stmt <span class="kw">in</span> weights:</div>
+        <div class="diff-line diff-del">-           weights[stmt] = w_path  <span class="cmt"># downgrade shared stmts</span></div>
+        <div class="diff-line diff-ctx">    <span class="kw">return</span> weights</div>
+        <div class="diff-line diff-ctx" style="margin-top:8px"><span class="cmt"># Result for ${prog.name}: ${prog.without.search_space} stmts all weighted equally</span></div>
+        <div class="diff-line diff-ctx"><span class="cmt"># Repair site has weight: ${prog.lines.find(l=>l.no===prog.repair_stmt)?.w_base.toFixed(2) || '?'}</span></div>
+      </div>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:var(--muted);line-height:1.7">
+      GenProg has <strong style="color:var(--text)">${prog.without.search_space} equally-weighted candidates</strong>.
+      It assigns weight 1.0 to every statement visited by the failing test — regardless of semantic relevance.
+      The actual repair site competes equally with irrelevant statements.
+    </div>
+  </div>
+
+  <div class="step-card good">
+    <div class="step-num">WITH BUG LOCALIZER</div>
+    <div class="step-title" style="color:var(--green)">set_weights() — semantic re-ranking</div>
+    <div class="code-wrap" style="margin-top:8px">
+      <div class="diff-block">
+        <div class="diff-header">genprog_with_localizer.py — set_weights()</div>
+        <div class="diff-line diff-ctx"><span class="kw">from</span> bug_localizer <span class="kw">import</span> BugLocalizer</div>
+        <div class="diff-line diff-add">+ localizer = BugLocalizer(model=<span class="str">"all-MiniLM-L6-v2"</span>)</div>
+        <div class="diff-line diff-ctx"></div>
+        <div class="diff-line diff-ctx"><span class="kw">def</span> <span class="fn">set_weights</span>(neg_path, pos_path, bug_report, w_path=0.01):</div>
+        <div class="diff-line diff-add">+   <span class="cmt"># 1. TF-IDF pass — keyword overlap with bug report</span></div>
+        <div class="diff-line diff-add">+   tfidf_scores = localizer.tfidf_rank(neg_path, bug_report)</div>
+        <div class="diff-line diff-add">+   <span class="cmt"># 2. Embedding pass — semantic cosine similarity</span></div>
+        <div class="diff-line diff-add">+   embed_scores = localizer.embed_rank(neg_path, bug_report)</div>
+        <div class="diff-line diff-add">+   <span class="cmt"># 3. Fuse: 0.4*tfidf + 0.6*embedding</span></div>
+        <div class="diff-line diff-add">+   semantic_scores = {s: 0.4*tfidf_scores[s] + 0.6*embed_scores[s]</div>
+        <div class="diff-line diff-add">+                     <span class="kw">for</span> s <span class="kw">in</span> neg_path}</div>
+        <div class="diff-line diff-ctx">    weights = {}</div>
+        <div class="diff-line diff-ctx">    <span class="kw">for</span> stmt <span class="kw">in</span> neg_path:</div>
+        <div class="diff-line diff-del">-       weights[stmt] = <span class="num">1.0</span></div>
+        <div class="diff-line diff-add">+       weights[stmt] = semantic_scores[stmt]  <span class="cmt"># semantic weight</span></div>
+        <div class="diff-line diff-ctx">    <span class="kw">for</span> stmt <span class="kw">in</span> pos_path:</div>
+        <div class="diff-line diff-ctx">        <span class="kw">if</span> stmt <span class="kw">in</span> weights:</div>
+        <div class="diff-line diff-ctx">            weights[stmt] *= w_path</div>
+        <div class="diff-line diff-ctx">    <span class="kw">return</span> weights</div>
+        <div class="diff-line diff-ctx" style="margin-top:8px"><span class="cmt"># Result for ${prog.name}: repair site weight ${prog.lines.find(l=>l.no===prog.repair_stmt)?.w_smart.toFixed(2) || '?'} (was ${prog.lines.find(l=>l.no===prog.repair_stmt)?.w_base.toFixed(2) || '?'})</span></div>
+      </div>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:var(--muted);line-height:1.7">
+      The Bug Localizer computes <strong style="color:var(--text)">TF-IDF keyword overlap</strong> (catches exact tokens like <em>calloc</em>, <em>lreply</em>)
+      and <strong style="color:var(--text)">sentence embedding similarity</strong> (catches semantic meaning like "infinite loop when zero").
+      Fusing both gives each statement a personalised weight — the repair site gets weight
+      <strong style="color:var(--green)">${prog.lines.find(l=>l.no===prog.repair_stmt)?.w_smart.toFixed(2) || '?'}</strong>
+      vs. the vanilla <strong style="color:var(--red)">${prog.lines.find(l=>l.no===prog.repair_stmt)?.w_base.toFixed(2) || '?'}</strong>.
+    </div>
+  </div>`;
+}
+
+function renderSummary() {
+  const p = PROGRAMS[current];
+  const evalSaving = Math.round((1 - p.with.evals_avg / p.without.evals_avg) * 100);
+  const srGain     = p.with.success_rate - p.without.success_rate;
+  const genSaving  = ((p.without.avg_gen - p.with.avg_gen) / p.without.avg_gen * 100).toFixed(0);
+  document.getElementById('summary-bar').innerHTML = `
+    <div class="sum-item">
+      <div class="sum-val" style="color:var(--green)">+${srGain}%</div>
+      <div class="sum-lbl">success rate gain</div>
+    </div>
+    <div class="sum-item">
+      <div class="sum-val" style="color:var(--blue)">${evalSaving}%</div>
+      <div class="sum-lbl">fewer fitness evals</div>
+    </div>
+    <div class="sum-item">
+      <div class="sum-val" style="color:var(--amber)">${genSaving}%</div>
+      <div class="sum-lbl">faster repair (gens)</div>
+    </div>
+    <div class="sum-item">
+      <div class="sum-val" style="color:var(--purple)">${p.with.search_space}</div>
+      <div class="sum-lbl">focused candidates (was ${p.without.search_space})</div>
+    </div>`;
+}
+
+function render() {
+  const prog = PROGRAMS[current];
+
+  renderCodeBlock('code-without', prog.lines, false, prog.repair_stmt);
+  renderCodeBlock('code-with',    prog.lines, true,  prog.repair_stmt);
+
+  renderMetrics('metrics-without', prog.without, false);
+  renderMetrics('metrics-with',    prog.with,    true);
+
+  document.getElementById('callout-without').innerHTML = prog.callout_without;
+  document.getElementById('callout-with').innerHTML    = prog.callout_with;
+
+  renderCandidates('cand-without', prog.lines, false);
+  renderCandidates('cand-with',    prog.lines, true);
+
+  renderGenBars('gen-bars-without', simState.without, 'var(--red)');
+  renderGenBars('gen-bars-with',    simState.with,    'var(--green)');
+
+  renderCodeDiff();
+  renderSummary();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SIMULATE
+// ─────────────────────────────────────────────────────────────────────────────
+async function simulate(mode) {
+  const prog = PROGRAMS[current];
+  const stats   = mode === 'without' ? prog.without : prog.with;
+  const color   = mode === 'without' ? 'var(--red)' : 'var(--green)';
+  const barsEl  = document.getElementById(`gen-bars-${mode}`);
+  const maxGens = 10;
+  const repairAt= mode === 'without' ? Math.round(stats.avg_gen) : Math.round(stats.with ? stats.avg_gen : prog.with.avg_gen);
+  const repGen  = mode === 'without' ? Math.round(prog.without.avg_gen) : Math.round(prog.with.avg_gen);
+
+  simState[mode] = [];
+
+  for (let g = 1; g <= maxGens; g++) {
+    const repaired = g >= repGen;
+    const base     = mode === 'without' ? 45 : 62;
+    const noise    = (Math.random() - 0.5) * 12;
+    const fit      = repaired ? 100 : Math.min(95, Math.max(20, base + g * (mode==='without'?3.5:5.5) + noise));
+    simState[mode].push({ fit: Math.round(fit), repaired: repaired && g === repGen });
+    renderGenBars(`gen-bars-${mode}`, simState[mode], color);
+    await new Promise(r => setTimeout(r, mode==='without' ? 120 : 90));
+    if (repaired && g === repGen) break;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PICKER
+// ─────────────────────────────────────────────────────────────────────────────
+function buildPicker() {
+  const el = document.getElementById('picker');
+  el.innerHTML = Object.keys(PROGRAMS).map(name =>
+    `<button class="prog-btn ${name===current?'active':''}" onclick="selectProg('${name}')">${name}</button>`
+  ).join('');
+}
+
+function selectProg(name) {
+  current = name;
+  simState = { without: [], with: [] };
+  buildPicker();
+  render();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────────────────
+buildPicker();
+render();
+</script>
+</body>
+</html>
